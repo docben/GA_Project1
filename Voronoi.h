@@ -10,12 +10,19 @@
 
 
 class Voronoi {
-    //std::vector<Vector2D*> vertices;
     std::vector<MyPolygon*> polygons;
 public:
     Voronoi(const Mesh &mesh);
     ~Voronoi();
     void draw();
+    MyPolygon* findPolygon(const Vector2D &pos);
+    void triangulatePolygons() {
+        auto p=polygons.begin();
+        while(p!=polygons.end()) {
+            (*p)->triangulation();
+            p++;
+        }
+    }
 };
 
 

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_STANDARD 17)
 
 set(PROJECT_NAME GA_Project1)
-set(PROJECT_FILES main.cpp Mesh.cpp Mesh.h Vector2D.h Triangle.h determinant.h determinant.cpp Voronoi.cpp Voronoi.h Polygon.h Polygon.cpp Icon.cpp Icon.h Vector.cpp)
+set(PROJECT_FILES main.cpp Mesh.cpp Mesh.h Vector2D.h Triangle.h determinant.h determinant.cpp Voronoi.cpp Voronoi.h Polygon.h Polygon.cpp Icon.cpp Icon.h Vector2D.cpp Drone.cpp)
 
 project(${PROJECT_NAME})
 

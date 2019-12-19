@@ -22,11 +22,27 @@ public :
     Vector2D operator-(const Vector2D &op2) const {
         return Vector2D(x - op2.x, y - op2.y);
     }
+    Vector2D operator-=(const Vector2D &op2) {
+        x-=op2.x;
+        y-=op2.y;
+        return *this;
+    }
     Vector2D operator+(const Vector2D &op2) const {
         return Vector2D(x + op2.x, y + op2.y);
     }
+    Vector2D operator+=(const Vector2D &op2) {
+        x+=op2.x;
+        y+=op2.y;
+        return *this;
+    }
     float operator*(const Vector2D &op2) const {
         return x*op2.x+y*op2.y;
+    }
+    bool operator!=(const Vector2D &op2) const {
+        return x!=op2.x || y!=op2.y;
+    }
+    inline void init() {
+        x=y=0;
     }
     void set(float p_x,float p_y) {
         x=p_x;
@@ -40,8 +56,14 @@ public :
     double norm() {
         return sqrt(x*x+y*y);
     }
+    double norm2() {
+        return x*x+y*y;
+    }
     Vector2D ortho() {
         return Vector2D(-y,x);
+    }
+    bool isNull() {
+        return x==0 && y==0;
     }
     friend ostream& operator<<(ostream& os,const Vector2D &v);
     friend istream& operator>>(istream& is,Vector2D &v);

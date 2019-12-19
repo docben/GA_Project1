@@ -14,7 +14,7 @@
 
 using namespace std;
 
-bool polarComparison(Vector2D P1,Vector2D P2) {
+bool polarComparison(const Vector2D &P1,const Vector2D &P2) {
     double a1 = asin(P1.y/sqrt(P1.x*P1.x+P1.y*P1.y));
     if (P1.x<0.0) a1=M_PI-a1;
     double a2 = asin(P2.y/sqrt(P2.x*P2.x+P2.y*P2.y));
@@ -82,9 +82,12 @@ MyPolygon::MyPolygon(vector<Vector2D> &points) {
         CHstack.pop();
     }
     tabPts[N]=tabPts[0];
+    setColor(YELLOW);
 }
 
 void MyPolygon::triangulation() {
+    tabTriangles.clear();
+
     vector<Vector2D*> tmp;
     // copy the list of vertices into the tmp list
     for (int i=0; i<N; i++) {
@@ -134,15 +137,15 @@ void MyPolygon::draw() {
     }
     glEnd();*/
 
-    glBegin(GL_TRIANGLES);
     for (auto t:tabTriangles) {
+        glBegin(GL_TRIANGLES);
         glVertex2f(t.ptr[0]->x,t.ptr[0]->y);
         glVertex2f(t.ptr[1]->x,t.ptr[1]->y);
         glVertex2f(t.ptr[2]->x,t.ptr[2]->y);
+        glEnd();
     }
-    glEnd();
     // draw the border
-    /*glColor3fv(BLUE);
+    /*glColor4fv(&BLUE[0]);
     glBegin(GL_LINE_LOOP);
     for (auto t:tabTriangles) {
         glVertex2f(t.ptr[0]->x,t.ptr[0]->y);
@@ -171,4 +174,29 @@ void MyPolygon::draw() {
         glEnd();
         GlutWindow::drawText(tabPts[i].x-10,tabPts[i].y,to_string(i),GlutWindow::ALIGN_RIGHT);
     }*/
+}
+
+void MyPolygon::clip(int x0,int y0,int x1,int y1) {
+    int i=0;
+    while (i<N) {
+        // case Left/Bottom
+        if (tabPts[i].x==x0 && tabPts[i+1].y==y0) {
+            insertPoint(Vector2D(x0,y0),i+1);
+            i++;
+        } else // case Bottom/Right
+        if (tabPts[i].y==y0 && tabPts[i+1].x==x1) {
+            insertPoint(Vector2D(x1,y0),i+1);
+            i++;
+        } else // case Right/Top
+        if (tabPts[i].x==x1 && tabPts[i+1].y==y1) {
+            insertPoint(Vector2D(x1,y1),i+1);
+            i++;
+        } else // case Top/Left
+        if (tabPts[i].y==y1 && tabPts[i+1].x==x0) {
+            insertPoint(Vector2D(x0,y1),i+1);
+            i++;
+        }
+
+        i++;
+    }
 }

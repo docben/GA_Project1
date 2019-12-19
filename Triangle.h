@@ -18,6 +18,8 @@ const array<float,4> ORANGE={1.0f,0.27f,0.0,1.0f};
 const array<float,4> YELLOW={1.0f,1.0f,0.0,1.0f};
 const array<float,4> GREEN={0.0,1.0f,0.0,1.0f};
 const array<float,4> BLUE={0.0,0.0,1.0f,1.0f};
+const array<float,4> CYAN={0.0,1.0,1.0f,1.0f};
+const array<float,4> PINK={1.0,0.75,0.80f,1.0f};
 const float pointRadius=5.0;
 const int pointSubs=8;
 
@@ -198,6 +200,25 @@ public:
 
     bool operator!= (const Triangle &t) {
         return (ptr[0]!=t.ptr[0] || ptr[1]!=t.ptr[1] || ptr[2]!=t.ptr[2]);
+    }
+
+    static array<float,4> getColorByName(const string &name) {
+        if (name.substr(0,3)=="RED") return array<float,4>(RED);
+        else if (name.substr(0,4)=="BLUE") return BLUE;
+        else if (name.substr(0,5)=="GREEN") return GREEN;
+        else if (name.substr(0,4)=="CYAN") return CYAN;
+        else if (name.substr(0,6)=="YELLOW") return YELLOW;
+        else if (name.substr(0,4)=="PINK") return PINK;
+        return BLACK;
+    }
+
+    double surface() const {
+        double a=(*ptr[1]-*ptr[0]).norm();
+        double b=(*ptr[2]-*ptr[1]).norm();
+        double c=(*ptr[0]-*ptr[2]).norm();
+        double p=0.5*(a+b+c);
+
+        return sqrt(p*(p-a)*(p-b)*(p-c));
     }
 };
 

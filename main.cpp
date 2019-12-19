@@ -3,40 +3,50 @@
 #include <vector>
 #include <glutWindow.h>
 #include <fstream>
+#include <cstring>
 #include "Mesh.h"
 #include "Voronoi.h"
 #include "Icon.h"
+#include "Drone.h"
 
 using namespace std;
 
-class ServerData {
-public:
-    string name;
-    Vector2D position;
-    string colorName;
-
-    ServerData() {};
-    ServerData(const string &p_name,const Vector2D &p_position,const string &p_colorName):
-    name(p_name),position(p_position),colorName(p_colorName)  {};
-};
+const string serversFileName("../Data/servers.txt");
 
 class PolygonDraw: public GlutWindow {
 private:
     Mesh *mesh;
     Voronoi *voronoi;
     bool showVoronoi;
-    bool vertexMotionMode;
     Icon *server;
-    vector<Vector2D>::iterator mouseOverServer;
+    Icon *drone;
+    vector<DroneData> drones;
     vector<ServerData> servers;
+    vector<ServerData>::iterator mouseOverServer;
+    ServerData* selectedServer;
+    string configFile;
+    double fieldSurface;
 public:
 
     PolygonDraw(const string &title,int argc,char **argv):GlutWindow(argc,argv,title,1000,800,FIXED) {
-        voronoi= nullptr;
-        mesh= nullptr;
         showVoronoi=false;
-        vertexMotionMode=false;
-        server = new Icon(64.0,64.0,"../Textures/server.tga");
+        mesh= nullptr;
+        voronoi= nullptr;
+        configFile = serversFileName;
+        selectedServer=nullptr;
+        fieldSurface = width*height;
+        cout << "argc=" << argc << endl;
+        int i=0;
+        while (i<argc) {
+            cout << "argv[" << i << "]=" << argv[i] << endl;
+            if (strncmp(argv[i],"-c",2)==0) {
+                i++;
+                if (i<argc) {
+                    configFile=argv[i++];
+                }
+            }
+            i++;
+        }
     };
 
     void onStart() override;
@@ -46,15 +56,23 @@ public:
     void onMouseDrag(double cx,double cy) override;
     void onMouseDown(int button,double cx,double cy) override;
     void onKeyPressed(unsigned char c,double x,double y) override;
+    void onUpdate(double dt) override;
     void loadServerPositions(const string &title);
     bool saveServerPositions(const string &title);
 };
 
 void PolygonDraw::onStart() {
-    float tabVect[][2]={{280,740},{700,750},{500,700}};
-    int tabTri[][3]={{0,2,1}};
-    mesh = new Mesh(tabVect,3,tabTri,1);
-    mouseOverServer = mesh->vertices.end();
+    server = new Icon(48.0,48.0,"../Textures/server.tga");
+    drone = new Icon(64,64,"../Textures/red_drone.tga");
+    loadServerPositions(configFile);
+
+    vector<Vector2D> tabVertices;
+    for(auto s:servers) {
+        tabVertices.push_back(s.position);
+    }
+    mesh = new Mesh(tabVertices);
+
+    mouseOverServer = servers.end();
     glClearColor(1.0,1.0,1.0,1.0); // background color
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -90,44 +108,60 @@ void PolygonDraw::onDraw() {
     glEnd();
     glPopMatrix();
 
-    mesh->draw();
-
-    for (auto v:mesh->vertices) {
-        glPushMatrix();
-        glTranslatef(v.x,v.y,0.0);
-        server->glDraw();
-        glPopMatrix();
-    }
     if (voronoi && showVoronoi) {
         voronoi->draw();
+    } else if (mesh) {
+        mesh->draw();
     }
+    glColor3fv(&BLACK[0]);
+    for (auto v:servers) {
+        glPushMatrix();
+        glTranslatef(v.position.x,v.position.y,0.0);
+        server->glDraw();
+        drawText(0,-0.5*server->getHeight()-18,v.name,ALIGN_CENTER);
+        string s = to_string(v.links2Drone.size())+"/"+to_string((int)(v.surfaceRate*drones.size()));
+        drawText(0,-0.5*server->getHeight()-36,s,ALIGN_CENTER);
+
+        glPopMatrix();
+    }
+
+    for (auto d:drones) {
+        glPushMatrix();
+        glTranslatef(d.position.x,d.position.y,0.0);
+        drone->glDraw();
+        d.glDraw();
+        glPopMatrix();
+    }
+
 }
 void PolygonDraw::onQuit() {
     delete mesh;
     delete voronoi;
     delete server;
+    delete drone;
 }
 
 void PolygonDraw::onMouseMove(double cx, double cy) {
     static float w = server->getWidth()/2;
     static float h = server->getHeight()/2;
-    //mesh->onMouseMove(cx,cy);
-    auto m_it=mesh->vertices.begin();
-    while (m_it!=mesh->vertices.end() && (cx>m_it->x+w || cx<m_it->x-w || cy>m_it->y+h || cy<m_it->y-w)) {
+    auto m_it=servers.begin();
+    while (m_it!=servers.end() && (cx>m_it->position.x+w || cx<m_it->position.x-w ||
+        cy>m_it->position.y+h || cy<m_it->position.y-w)) {
         m_it++;
     }
     mouseOverServer =m_it;
-    if (mouseOverServer!=mesh->vertices.end()) {
+    if (mouseOverServer!=servers.end()) {
         glutSetCursor(GLUT_CURSOR_CROSSHAIR);
     } else {
         glutSetCursor(GLUT_CURSOR_INHERIT);
     }
+    mesh->onMouseMove(cx,cy);
 }
 
 void PolygonDraw::onMouseDrag(double cx, double cy) {
-    if (mouseOverServer!=mesh->vertices.end()) {
-        mouseOverServer->x=cx;
-        mouseOverServer->y=cy;
+    if (mouseOverServer!=servers.end()) {
+        mouseOverServer->position.x=(float)cx;
+        mouseOverServer->position.y=(float)cy;
     }
 }
 
@@ -162,26 +196,158 @@ void PolygonDraw::onMouseDown(int button, double cx, double cy) {
 }
 
 void PolygonDraw::onKeyPressed(unsigned char c, double x, double y) {
-    if (c=='c') {
-        mesh->solveDelaunay();
-        mesh->checkDelaunay();
-        voronoi = new Voronoi(*mesh);
-    } else if (c=='v') showVoronoi = !showVoronoi;
+    switch (c) {
+        case 's':
+            saveServerPositions(configFile);
+        break;
+        case 'v': showVoronoi=!showVoronoi; break;
+        case 'z': {
+            mesh->checkDelaunay();
+            mesh->solveDelaunay();
+            mesh->checkDelaunay();
+            voronoi = new Voronoi(*mesh);
+            voronoi->triangulatePolygons();
+            auto s = servers.begin();
+            while (s != servers.end()) {
+                s->ptrPolygon = voronoi->findPolygon(s->position);
+                array<float, 4> c = Triangle::getColorByName(s->colorName);
+                s->ptrPolygon->setColor(c);
+                s->surfaceRate = s->ptrPolygon->surface()/fieldSurface;
+                cout << s->name << ":" << 0.1 * floor((s->surfaceRate) * 1000 + 0.5) << endl;
+                /* construct neighbor list -------------------------------*/
+                auto m_vert = mesh->vertices.begin(); // point of the mesh corresponding to s->position
+                while (m_vert!=mesh->vertices.end() && (*m_vert!=s->position)) {
+                    m_vert++;
+                }
+                assert(m_vert!=mesh->vertices.end());
+
+                auto mt_it = mesh->triangles.begin();
+                vector<const Vector2D*> tabPts; // tabPts: list of vertices connected to m_vert
+
+                while (mt_it!=mesh->triangles.end()) {
+                    if ((*mt_it).hasVertex(&(*m_vert))) {
+                        tabPts.push_back((*mt_it).getPrevVertex(&(*m_vert)));
+                        tabPts.push_back((*mt_it).getNextVertex(&(*m_vert)));
+                    }
+                    mt_it++;
+                }
+                sort(tabPts.begin(),tabPts.end(),[](const Vector2D *a, const Vector2D *b) {
+                    return (a->x > b->x)||((a->x==b->x)&&(a->y > b->y));
+                });
+                // add unique neighbor
+                cout << "Neighbors: ";
+                Vector2D prev;
+                for (auto pp:tabPts) {
+                    if (*pp!=prev) {
+                        auto it_s = servers.begin();
+                        while (it_s != servers.end() && (it_s->position != *pp)) {
+                            it_s++;
+                        }
+                        assert(it_s != servers.end());
+                        s->addNeighbor(&(*it_s));
+                        cout << it_s->name << ", ";
+                    }
+                    prev=*pp;
+                }
+                cout << endl;
+                // end construct neighbor list ---------------------------*/
+
+
+                s++;
+            }
+            showVoronoi=true;
+        } break;
+        case 'd':
+            if (voronoi) {
+                drones.push_back(DroneData(Vector2D(50,50)));
+            }
+        break;
+    }
 }
 
-void PolygonDraw::loadServerPositions(const string &title) {
-    ifstream fin(title);
-    string name,color;
-    Vector2D position;
-
-    servers.clear();
-    if (fin.is_open()) {
-        while (!fin.eof()) {
-            fin >> name >> position >> color;
-            servers.push_back(ServerData(name,position,color));
-        }
+void PolygonDraw::onUpdate(double dt) {
+    // initialize every drone forces
+    auto d=drones.begin();
+    while (d!=drones.end()) {
+        d->updateSpeed(dt);
+        d->sumF.init();
+        d++;
     }
-    fin.close();
+    // Associate drones
+    d=drones.begin();
+    while (d!=drones.end()) {
+        if (d->ptrServer==nullptr || !d->ptrServer->droneIsOver(d->position)) {
+            if (d->ptrServer!= nullptr) {
+                d->ptrServer->removeDrone(&(*d));
+            }
+            auto s=servers.begin();
+            while (s!=servers.end() && !s->droneIsOver(d->position)){
+                s++;
+            }
+            assert(s!=servers.end());
+            cout << s->name << endl;
+            s->addDrone(&(*d));
+            d->ptrServer=&(*s);
+        }
+        // collisions of d with others
+        auto dcomp=d+1;
+        while (dcomp!=drones.end()) {
+            Vector2D AB = dcomp->position-d->position;
+            double dAB=AB.norm();
+            if (dAB<dmax) {
+                double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
+                d->sumF-=F*AB;
+                dcomp->sumF+=F*AB;
+            }
+            dcomp++;
+        }
+
+
+        d++;
+    }
+}
+
+
+void PolygonDraw::loadServerPositions(const string &title) {
+    try {
+        ifstream fin(title);
+        string name, color;
+        Vector2D position;
+
+        servers.clear();
+
+        if (fin.is_open()) {
+            char line[256];
+            string strLine,vectorStr;
+            int posBeg,posEnd;
+            while (!fin.eof()) {
+                fin.getline(line,256);
+                strLine=line;
+                if (strLine.size()>1) {
+                    posEnd = strLine.find(';');
+                    name = strLine.substr(0, posEnd);
+                    //cout << "name=" << name << endl;
+                    posBeg = posEnd + 1;
+                    posEnd = strLine.find(';', posBeg);
+                    vectorStr = strLine.substr(posBeg, posEnd - posBeg);
+                    //cout << "vectorStr=" << vectorStr << endl;
+                    color = strLine.substr(posEnd + 1);
+                    //cout << "color=" << color << endl;
+                    posBeg = vectorStr.find('(');
+                    posEnd = vectorStr.find(',');
+                    position.x = stof(vectorStr.substr(posBeg + 1, posEnd - posBeg - 1));
+                    posBeg = posEnd + 1;
+                    posEnd = vectorStr.find(')', posBeg);
+                    position.y = stof(vectorStr.substr(posBeg, posEnd - posBeg));
+                    //cout << "position=" << position << endl;
+                    servers.push_back(ServerData(name, position, color));
+                }
+            }
+        }
+        fin.close();
+    } catch (ifstream::failure e) {
+        cerr << "Exception opening/reading/closing file" << endl;
+    }
 }
 
 bool PolygonDraw::saveServerPositions(const string &title) {
@@ -189,7 +355,7 @@ bool PolygonDraw::saveServerPositions(const string &title) {
 
     if (fout.is_open()) {
         for (auto it:servers) {
-            fout << it.name << ";" << it.position << ":" << it.colorName << "\n";
+            fout << it.name << ";" << it.position << ";" << it.colorName << "\n";
         }
     } else {
         return false;
@@ -198,7 +364,7 @@ bool PolygonDraw::saveServerPositions(const string &title) {
 }
 
 int main(int argc,char **argv) {
-    PolygonDraw win("Triangulation", argc,argv);
+    PolygonDraw win("Servers and Drones", argc,argv);
     win.start();
 
     return 0;

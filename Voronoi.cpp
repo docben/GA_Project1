@@ -12,12 +12,13 @@ const array<float,4> tabColors[6]={{1.0f,0.0,0.0,0.5f},{1.0f,0.27f,0.0,0.5f},{1.
 {0.0f,1.0f,1.0,0.5f},{0.0f,0.0f,1.0,0.5f}};
 
 Voronoi::Voronoi(const Mesh &mesh) {
-   auto m_vert = mesh.vertices.begin();
-   int currentColor=0;
-   vector<const Triangle*> tabTri;
-   while (m_vert!=mesh.vertices.end()) {
+    MyPolygon *poly;
+    auto m_vert = mesh.vertices.begin();
+    int currentColor=0;
+    vector<const Triangle*> tabTri;
+    while (m_vert!=mesh.vertices.end()) { // for all vertices of the mesh
         auto mt_it = mesh.triangles.begin();
-        tabTri.clear();
+        tabTri.clear(); // tabTri: list of triangles containing m_vert
         while (mt_it!=mesh.triangles.end()) {
             if ((*mt_it).hasVertex(&(*m_vert))) {
                 tabTri.push_back(&(*mt_it));
@@ -46,7 +47,7 @@ Voronoi::Voronoi(const Mesh &mesh) {
             cout << "no border" << endl;
         }
         // create polygon
-        auto poly = new MyPolygon(20);
+        poly = new MyPolygon(20);
         polygons.push_back(poly);
 
         poly->setColor(tabColors[currentColor]);
@@ -73,7 +74,7 @@ Voronoi::Voronoi(const Mesh &mesh) {
         auto comp_it = first;
         do {
             poly->addPoint(Vector2D((*tt_it)->circumCenter));
-            cout << "newPoint=" << (*tt_it)->circumCenter << endl;
+            cout << "newCCPoint=" << (*tt_it)->circumCenter << endl;
             // search triangle on right of tt_it
             comp_it = tabTri.begin();
             while (comp_it!=tabTri.end() && (*tt_it)->getPrevVertex(&(*m_vert))!=(*comp_it)->getNextVertex(&(*m_vert))) {
@@ -98,9 +99,11 @@ Voronoi::Voronoi(const Mesh &mesh) {
            Vector2D pt = (*tt_it)->circumCenter + k * V;
            cout << "newPoint=" << pt << endl;
        }
-        //poly->clip(0,0,GlutWindow::getWindowWidth(),GlutWindow::getWindowHeight())
+        poly->clip(0,0,GlutWindow::getWindowWidth(),GlutWindow::getWindowHeight());
+        cout << "Final -------------------" << endl;
+        poly->print();
         m_vert++;
-   }
+    }
 }
 
 Voronoi::~Voronoi() {
@@ -108,9 +111,17 @@ Voronoi::~Voronoi() {
 }
 
 void Voronoi::draw() {
-    glBegin(GL_LINES);
-    for (auto p:polygons) {
-        p->draw();
+    auto p = polygons.begin();
+    while (p!=polygons.end()) {
+        (*p)->draw();
+        p++;
     }
-    glEnd();
+}
+
+MyPolygon* Voronoi::findPolygon(const Vector2D &pos) {
+    auto p = polygons.begin();
+    while (p!=polygons.end() && !(*p)->isInsideTriangles(pos.x,pos.y)) {
+        p++;
+    }
+    return (p!=polygons.end())?*p: nullptr;
 }

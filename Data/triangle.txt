@@ -1,0 +1,3 @@
+Paris;(221,128);RED
+Beijing;(532,756);GREEN
+San Francisco;(690,210);CYAN

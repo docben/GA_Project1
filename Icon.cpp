@@ -3,7 +3,6 @@
 //
 
 #include "Icon.h"
-#include <png.h>
 
 Icon::Icon(float c_width, float c_height, const string &c_title):width(c_width),height(c_height),title(c_title) {
     textureId=0;
@@ -20,7 +19,7 @@ void Icon::glDraw() {
     }
     glPushMatrix();
     glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_FRONT,textureId);
+    glBindTexture(GL_TEXTURE_2D,textureId);
     glScalef(width,height,1.0f);
     glBegin(GL_QUADS);
     glTexCoord2f(0,0);

@@ -29,12 +29,25 @@ public:
         delete [] tabPts;
     }
 
+    inline int getNbPts() { return N; };
+    inline Vector2D* getPtrPt(int i) { return &tabPts[i]; };
+
     void triangulation();
 
     bool addPoint(const Vector2D &p) {
         if (Nmax==N-2) return false;
         tabPts[N++]=p;
         tabPts[N]=tabPts[0];
+        return true;
+    }
+
+    bool insertPoint(const Vector2D &p,int index) {
+        if (Nmax==N-2) return false;
+        for (int i=N; i>index; i--) {
+            tabPts[i]=tabPts[i-1];
+        }
+        tabPts[index]=p;
+        tabPts[++N]=tabPts[0];
         return true;
     }
 
@@ -69,6 +82,12 @@ public:
         return (i==N);
     }
 
+    /**
+     * @brief check is a point (x,y) is inside the triangle of the polygon
+     * @param x: component of the point
+     * @param y: component of the point
+     * @return true if inside
+     */
     bool isInsideTriangles(float x,float y) {
         Vector2D P(x,y);
         auto triangle=tabTriangles.begin();
@@ -80,9 +99,33 @@ public:
 
     void setColor(const array<float,4> &t_color) {
         color = t_color;
-
     }
 
+    void clip(int x0,int y0,int x1,int y1);
+    void print() {
+        for (int i=0; i<N;i++) {
+            cout << i << ":" << tabPts[i] << endl;
+        }
+    }
+
+    double surface() {
+        if (tabTriangles.size()==0) triangulation();
+        double s=0;
+        for (auto t:tabTriangles) {
+            s+=t.surface();
+        }
+        return s;
+    }
+
+    bool isAVertex(const Vector2D &pt) {
+        int i=0;
+        Vector2D *ptr = tabPts;
+        while (i<N && (pt.x!=ptr->x || pt.y!=ptr->y)) {
+            i++;
+            ptr++;
+        }
+        return (i!=N);
+    }
 };
 
 #endif //GEOMETRY_TRIANGULATION_GL_POLYGON_H
