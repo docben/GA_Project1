@@ -4,6 +4,7 @@
 #include <glutWindow.h>
 #include <fstream>
 #include <cstring>
+#include <algorithm>
 #include "Mesh.h"
 #include "Voronoi.h"
 #include "Icon.h"
@@ -119,7 +120,7 @@ void PolygonDraw::onDraw() {
         glTranslatef(v.position.x,v.position.y,0.0);
         server->glDraw();
         drawText(0,-0.5*server->getHeight()-18,v.name,ALIGN_CENTER);
-        string s = to_string(v.links2Drone.size())+"/"+to_string((int)(v.surfaceRate*drones.size()));
+        string s = to_string(v.links2Drone.size())+"/"+to_string((int)(v.surfaceRate*drones.size()+0.5));
         drawText(0,-0.5*server->getHeight()-36,s,ALIGN_CENTER);
 
         glPopMatrix();
@@ -259,7 +260,17 @@ void PolygonDraw::onKeyPressed(unsigned char c, double x, double y) {
         } break;
         case 'd':
             if (voronoi) {
-                drones.push_back(DroneData(Vector2D(50,50)));
+                drones.emplace_back(Vector2D(50,50));
+                DroneData *d=&drones[drones.size()-1];
+                auto s=servers.begin();
+                while (s!=servers.end() && !s->droneIsOver(d->position)){
+                    s++;
+                }
+                assert(s!=servers.end());
+                cout << "Initial server:" << s->name << endl;
+                s->addDrone(d);
+                d->ptrServer=&(*s);
+                s->printDrones();
             }
         break;
     }
@@ -301,8 +312,27 @@ void PolygonDraw::onUpdate(double dt) {
             }
             dcomp++;
         }
-
-
+        // collision of d with borders
+        double dAB=d->position.x;
+        if (dAB<dmax) {
+            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
+            d->sumF+=Vector2D(F,0);
+        }
+        dAB=width-d->position.x;
+        if (dAB<dmax) {
+            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
+            d->sumF+=Vector2D(-F,0);
+        }
+        dAB=d->position.y;
+        if (dAB<dmax) {
+            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
+            d->sumF+=Vector2D(0,F);
+        }
+        dAB=height-d->position.y;
+        if (dAB<dmax) {
+            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
+            d->sumF+=Vector2D(0,-F);
+        }
         d++;
     }
 }

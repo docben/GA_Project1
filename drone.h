@@ -31,11 +31,13 @@ public:
     void setDroneGoal(DroneData *drone);
     void addNeighbor(ServerData *neighbor);
     bool droneIsOver(const Vector2D &p) { return ptrPolygon->isInsideTriangles(p.x,p.y); };
+    void printDrones();
 };
 
 
 class DroneData {
 public:
+    int id;
     Vector2D position;
     Vector2D V;
     Vector2D goal;
@@ -46,6 +48,9 @@ public:
     }
 
     DroneData(const Vector2D& p_position):position(p_position) {
+        static int memid=1;
+
+        id=memid++;
         ptrServer= nullptr;
     }
     void glDraw();

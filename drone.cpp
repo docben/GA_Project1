@@ -4,6 +4,7 @@
 
 #include <glutWindow.h>
 #include "Drone.h"
+#include <algorithm>
 
 void DroneData::updateSpeed(double dt) {
     if (ptrServer!= nullptr) {
@@ -50,13 +51,30 @@ void DroneData::glDraw() {
 void ServerData::addDrone(DroneData *ptr) {
     links2Drone.push_back(ptr);
     setDroneGoal(ptr);
+    cout << "Drone " << ptr->id << " added to " << name << endl;
+    cout << "verif=" << links2Drone[links2Drone.size()-1]->id << endl;
 }
 
 void ServerData::removeDrone(DroneData *ptr) {
-    auto it = find(links2Drone.begin(),links2Drone.end(),ptr);
+    auto it = links2Drone.begin();
+    while (it!=links2Drone.end() && (*it)->id!=ptr->id) {
+        it++;
+    }
     if (it!=links2Drone.end()) {
         links2Drone.erase(it);
+        cout << "Drone " << ptr->id << " removed from " << name << endl;
+    } else {
+        cerr << "Drone " << ptr->id << " not found in " << name << endl;
+        printDrones();
     }
+}
+
+void ServerData::printDrones() {
+    cout << "size=" << links2Drone.size() << endl;
+    for (auto d:links2Drone) {
+        cout << d->id << " ";
+    }
+    cout << endl;
 }
 
 void ServerData::addNeighbor(ServerData *neighbor) {
@@ -65,13 +83,13 @@ void ServerData::addNeighbor(ServerData *neighbor) {
 
 void ServerData::setDroneGoal(DroneData *drone) {
     float serverWeight=(links2Drone.size())/surfaceRate;
-    cout << "Server " << name << " weight=" << serverWeight << " (" << links2Drone.size() << " drones)" << endl;
+    //cout << "Server " << name << " weight=" << serverWeight << " (" << links2Drone.size() << " drones)" << endl;
     sort(neighbors.begin(), neighbors.end(), [](ServerData *a, ServerData *b) {
         return (a->links2Drone.size() + 1) / a->surfaceRate < (b->links2Drone.size() + 1) / b->surfaceRate;
     });
     int ind=drone->ptrServer==neighbors[0]?1:0;
-    cout << "Best " << neighbors[0]->name << " weight=" << (neighbors[0]->links2Drone.size() + 1) / neighbors[0]->surfaceRate << " (" << neighbors[0]->links2Drone.size() << " drones)" << endl;
-    cout << "Next " << neighbors[1]->name << " weight=" << (neighbors[1]->links2Drone.size() + 1) / neighbors[1]->surfaceRate << " (" << neighbors[1]->links2Drone.size() << " drones)" << endl;
+    //cout << "Best " << neighbors[0]->name << " weight=" << (neighbors[0]->links2Drone.size() + 1) / neighbors[0]->surfaceRate << " (" << neighbors[0]->links2Drone.size() << " drones)" << endl;
+    //cout << "Next " << neighbors[1]->name << " weight=" << (neighbors[1]->links2Drone.size() + 1) / neighbors[1]->surfaceRate << " (" << neighbors[1]->links2Drone.size() << " drones)" << endl;
 
     float neighborWeight=(neighbors[ind]->links2Drone.size() + 1) / neighbors[ind]->surfaceRate;
     if(serverWeight<neighborWeight) {
