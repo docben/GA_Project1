@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+#include <array>
 #include <vector>
 #include <glutWindow.h>
 #include <fstream>
@@ -13,6 +14,10 @@
 using namespace std;
 
 const string serversFileName("../Data/servers.txt");
+const array<Vector2D,4> tabAppearingPos={ Vector2D(50.0f,50.0f),
+                                          Vector2D(950.0f,50.0f),
+                                          Vector2D(950.0f,750.0f),
+                                          Vector2D(50.0f,750.0f)};
 
 class PolygonDraw: public GlutWindow {
 private:
@@ -21,9 +26,9 @@ private:
     bool showVoronoi;
     Icon *server;
     Icon *drone;
-    vector<DroneData> drones;
-    vector<ServerData> servers;
-    vector<ServerData>::iterator mouseOverServer;
+    vector<DroneData*> drones;
+    vector<ServerData*> servers;
+    vector<ServerData*>::iterator mouseOverServer;
     ServerData* selectedServer;
     string configFile;
     double fieldSurface;
@@ -60,6 +65,7 @@ public:
     void onUpdate(double dt) override;
     void loadServerPositions(const string &title);
     bool saveServerPositions(const string &title);
+    void addDrone(const Vector2D &pos);
 };
 
 void PolygonDraw::onStart() {
@@ -69,7 +75,7 @@ void PolygonDraw::onStart() {
 
     vector<Vector2D> tabVertices;
     for(auto s:servers) {
-        tabVertices.push_back(s.position);
+        tabVertices.push_back(s->position);
     }
     mesh = new Mesh(tabVertices);
 
@@ -114,23 +120,23 @@ void PolygonDraw::onDraw() {
     } else if (mesh) {
         mesh->draw();
     }
-    glColor3fv(&BLACK[0]);
-    for (auto v:servers) {
-        glPushMatrix();
-        glTranslatef(v.position.x,v.position.y,0.0);
-        server->glDraw();
-        drawText(0,-0.5*server->getHeight()-18,v.name,ALIGN_CENTER);
-        string s = to_string(v.links2Drone.size())+"/"+to_string((int)(v.surfaceRate*drones.size()+0.5));
-        drawText(0,-0.5*server->getHeight()-36,s,ALIGN_CENTER);
-
-        glPopMatrix();
-    }
 
     for (auto d:drones) {
         glPushMatrix();
-        glTranslatef(d.position.x,d.position.y,0.0);
+        glTranslatef(d->position.x,d->position.y,0.0);
         drone->glDraw();
-        d.glDraw();
+        d->glDraw();
+        glPopMatrix();
+    }
+
+    glColor3fv(&BLACK[0]);
+    for (auto v:servers) {
+        glPushMatrix();
+        glTranslatef(v->position.x,v->position.y,0.0);
+        server->glDraw();
+        drawText(0,-0.5*server->getHeight()-18,v->name,ALIGN_CENTER);
+        string s = to_string(v->links2Drone.size())+"/"+to_string((int)(v->surfaceRate*drones.size()+0.5));
+        drawText(0,-0.5*server->getHeight()-36,s,ALIGN_CENTER);
         glPopMatrix();
     }
 
@@ -146,8 +152,8 @@ void PolygonDraw::onMouseMove(double cx, double cy) {
     static float w = server->getWidth()/2;
     static float h = server->getHeight()/2;
     auto m_it=servers.begin();
-    while (m_it!=servers.end() && (cx>m_it->position.x+w || cx<m_it->position.x-w ||
-        cy>m_it->position.y+h || cy<m_it->position.y-w)) {
+    while (m_it!=servers.end() && (cx>(*m_it)->position.x+w || cx<(*m_it)->position.x-w ||
+        cy>(*m_it)->position.y+h || cy<(*m_it)->position.y-w)) {
         m_it++;
     }
     mouseOverServer =m_it;
@@ -161,39 +167,13 @@ void PolygonDraw::onMouseMove(double cx, double cy) {
 
 void PolygonDraw::onMouseDrag(double cx, double cy) {
     if (mouseOverServer!=servers.end()) {
-        mouseOverServer->position.x=(float)cx;
-        mouseOverServer->position.y=(float)cy;
+        (*mouseOverServer)->position.x=(float)cx;
+        (*mouseOverServer)->position.y=(float)cy;
     }
 }
 
 void PolygonDraw::onMouseDown(int button, double cx, double cy) {
-    /*auto itPoint = mesh->getVertex();
-    if (itPoint!=mesh->vertices.end()) {
-        vertexMotionMode=true;
-    }
-    Vector2D P((float)cx,(float)cy);
-    const Triangle *T = mesh->getTriangle(P);
 
-    if (T) {
-        cout << "Clicked:" << T->whoami(mesh->vertices) << endl;
-        if (button==GLUT_RIGHT_BUTTON) {
-            mesh->subdivide(P);
-        } else {
-            if (!T->isDelaunay) {
-                // search a Triangle which shares an edge and has a vertex inside T circumcircle
-                Triangle *Tneighbor = mesh->neighborInside(T);
-
-                if (Tneighbor) {
-                    cout << "Neighbor:" << Tneighbor->whoami(mesh->vertices) << endl;
-                    // flip the vertices of T and Tneighbor
-                    mesh->flip(*T, *Tneighbor);
-                }
-            }
-        }
-        if (mesh->checkDelaunay() && voronoi == nullptr) {
-            voronoi = new Voronoi(*mesh);
-        }
-    }*/
 }
 
 void PolygonDraw::onKeyPressed(unsigned char c, double x, double y) {
@@ -210,14 +190,16 @@ void PolygonDraw::onKeyPressed(unsigned char c, double x, double y) {
             voronoi->triangulatePolygons();
             auto s = servers.begin();
             while (s != servers.end()) {
-                s->ptrPolygon = voronoi->findPolygon(s->position);
-                array<float, 4> c = Triangle::getColorByName(s->colorName);
-                s->ptrPolygon->setColor(c);
-                s->surfaceRate = s->ptrPolygon->surface()/fieldSurface;
-                cout << s->name << ":" << 0.1 * floor((s->surfaceRate) * 1000 + 0.5) << endl;
-                /* construct neighbor list -------------------------------*/
+                (*s)->ptrPolygon = voronoi->findPolygon((*s)->position);
+                assert((*s)->ptrPolygon!= nullptr);
+                array<float, 4> c = Triangle::getColorByName((*s)->colorName);
+
+                (*s)->ptrPolygon->setColor(c);
+                (*s)->surfaceRate = (*s)->ptrPolygon->surface()/fieldSurface;
+                cout << (*s)->name << ":" << 0.1 * floor(((*s)->surfaceRate) * 1000 + 0.5) << endl;
+                // construct neighbor list -------------------------------
                 auto m_vert = mesh->vertices.begin(); // point of the mesh corresponding to s->position
-                while (m_vert!=mesh->vertices.end() && (*m_vert!=s->position)) {
+                while (m_vert!=mesh->vertices.end() && (*m_vert!=(*s)->position)) {
                     m_vert++;
                 }
                 assert(m_vert!=mesh->vertices.end());
@@ -241,37 +223,28 @@ void PolygonDraw::onKeyPressed(unsigned char c, double x, double y) {
                 for (auto pp:tabPts) {
                     if (*pp!=prev) {
                         auto it_s = servers.begin();
-                        while (it_s != servers.end() && (it_s->position != *pp)) {
+                        while (it_s != servers.end() && ((*it_s)->position != *pp)) {
                             it_s++;
                         }
                         assert(it_s != servers.end());
-                        s->addNeighbor(&(*it_s));
-                        cout << it_s->name << ", ";
+                        (*s)->addNeighbor(*it_s);
+                        cout << (*it_s)->name << ", ";
                     }
                     prev=*pp;
                 }
                 cout << endl;
-                // end construct neighbor list ---------------------------*/
+                // end construct neighbor list ---------------------------
 
 
                 s++;
             }
             showVoronoi=true;
         } break;
+        case 'D' :
+            addDrone(tabAppearingPos[rand()%tabAppearingPos.size()]);
+        break;
         case 'd':
-            if (voronoi) {
-                drones.emplace_back(Vector2D(50,50));
-                DroneData *d=&drones[drones.size()-1];
-                auto s=servers.begin();
-                while (s!=servers.end() && !s->droneIsOver(d->position)){
-                    s++;
-                }
-                assert(s!=servers.end());
-                cout << "Initial server:" << s->name << endl;
-                s->addDrone(d);
-                d->ptrServer=&(*s);
-                s->printDrones();
-            }
+            addDrone(Vector2D(50,50));
         break;
     }
 }
@@ -280,58 +253,58 @@ void PolygonDraw::onUpdate(double dt) {
     // initialize every drone forces
     auto d=drones.begin();
     while (d!=drones.end()) {
-        d->updateSpeed(dt);
-        d->sumF.init();
+        (*d)->updateSpeed(dt);
+        (*d)->sumF.init();
         d++;
     }
     // Associate drones
     d=drones.begin();
     while (d!=drones.end()) {
-        if (d->ptrServer==nullptr || !d->ptrServer->droneIsOver(d->position)) {
-            if (d->ptrServer!= nullptr) {
-                d->ptrServer->removeDrone(&(*d));
+        if ((*d)->ptrServer==nullptr || !(*d)->ptrServer->droneIsOver((*d)->position)) {
+            if ((*d)->ptrServer!= nullptr) {
+                (*d)->ptrServer->removeDrone(*d);
             }
             auto s=servers.begin();
-            while (s!=servers.end() && !s->droneIsOver(d->position)){
+            while (s!=servers.end() && !(*s)->droneIsOver((*d)->position)){
                 s++;
             }
             assert(s!=servers.end());
-            cout << s->name << endl;
-            s->addDrone(&(*d));
-            d->ptrServer=&(*s);
+            cout << (*s)->name << endl;
+            (*s)->addDrone(*d);
+            (*d)->ptrServer=*s;
         }
         // collisions of d with others
         auto dcomp=d+1;
         while (dcomp!=drones.end()) {
-            Vector2D AB = dcomp->position-d->position;
+            Vector2D AB = (*dcomp)->position-(*d)->position;
             double dAB=AB.norm();
             if (dAB<dmax) {
-                double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
-                d->sumF-=F*AB;
-                dcomp->sumF+=F*AB;
+                float F=(float)((dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax);
+                (*d)->sumF-=F*AB;
+                (*dcomp)->sumF+=F*AB;
             }
             dcomp++;
         }
         // collision of d with borders
-        double dAB=d->position.x;
+        double dAB=(*d)->position.x;
         if (dAB<dmax) {
-            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
-            d->sumF+=Vector2D(F,0);
+            float F=(float)((dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax);
+            (*d)->sumF+=Vector2D(F,0);
         }
-        dAB=width-d->position.x;
+        dAB=width-(*d)->position.x;
         if (dAB<dmax) {
-            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
-            d->sumF+=Vector2D(-F,0);
+            float F=(float)((dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax);
+            (*d)->sumF+=Vector2D(-F,0);
         }
-        dAB=d->position.y;
+        dAB=(*d)->position.y;
         if (dAB<dmax) {
-            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
-            d->sumF+=Vector2D(0,F);
+            float F=(float)((dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax);
+            (*d)->sumF+=Vector2D(0,F);
         }
-        dAB=height-d->position.y;
+        dAB=height-(*d)->position.y;
         if (dAB<dmax) {
-            double F=(dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax;
-            d->sumF+=Vector2D(0,-F);
+            float F=(float)((dAB>dmin)?(Fmax/dAB)*(dAB-dmax)/(dmin-dmax):Fmax);
+            (*d)->sumF+=Vector2D(0,-F);
         }
         d++;
     }
@@ -370,7 +343,7 @@ void PolygonDraw::loadServerPositions(const string &title) {
                     posEnd = vectorStr.find(')', posBeg);
                     position.y = stof(vectorStr.substr(posBeg, posEnd - posBeg));
                     //cout << "position=" << position << endl;
-                    servers.push_back(ServerData(name, position, color));
+                    servers.push_back(new ServerData(name, position, color));
                 }
             }
         }
@@ -385,12 +358,29 @@ bool PolygonDraw::saveServerPositions(const string &title) {
 
     if (fout.is_open()) {
         for (auto it:servers) {
-            fout << it.name << ";" << it.position << ";" << it.colorName << "\n";
+            fout << (*it).name << ";" << (*it).position << ";" << (*it).colorName << "\n";
         }
     } else {
         return false;
     }
     return true;
+}
+
+void PolygonDraw::addDrone(const Vector2D &pos) {
+    if (voronoi) {
+
+        drones.emplace_back(new DroneData(pos));
+        DroneData *d=drones[drones.size()-1];
+        auto s=servers.begin();
+        while (s!=servers.end() && !(*s)->droneIsOver(d->position)){
+            s++;
+        }
+        assert(s!=servers.end());
+        cout << "Initial server:" << (*s)->name << endl;
+        (*s)->addDrone(d);
+        d->ptrServer=*s;
+        (*s)->printDrones();
+    }
 }
 
 int main(int argc,char **argv) {

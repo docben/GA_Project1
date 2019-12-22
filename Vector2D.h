@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <array>
 #ifndef M_PI
 #define M_PI    3.141592653589
 #endif
@@ -19,6 +20,10 @@ public :
     Vector2D():x(0),y(0) {};
     Vector2D(const Vector2D &v) {x=v.x; y=v.y; }
     Vector2D(float p_x,float p_y):x(p_x),y(p_y) {};
+    Vector2D(const float p[2]) {
+        x = p[0];
+        y = p[1];
+    }
     Vector2D operator-(const Vector2D &op2) const {
         return Vector2D(x - op2.x, y - op2.y);
     }

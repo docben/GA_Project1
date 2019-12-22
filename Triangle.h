@@ -4,7 +4,11 @@
 
 #ifndef GEOMETRY_TRIANGULATION_GL_TRIANGLE_H
 #define GEOMETRY_TRIANGULATION_GL_TRIANGLE_H
-#include <GL/glut.h>
+#ifndef __APPLE__
+#include <GL/freeglut.h>
+#else
+#include <GLUT/glut.h> // for APPLE only
+#endif
 #include <vector>
 #include <string>
 #include <array>
@@ -203,7 +207,7 @@ public:
     }
 
     static array<float,4> getColorByName(const string &name) {
-        if (name.substr(0,3)=="RED") return array<float,4>(RED);
+        if (name.substr(0,3)=="RED") return RED;
         else if (name.substr(0,4)=="BLUE") return BLUE;
         else if (name.substr(0,5)=="GREEN") return GREEN;
         else if (name.substr(0,4)=="CYAN") return CYAN;
